@@ -1,16 +1,21 @@
+// Biblioteca utilizada para fazer a comunicacao com o modulo I2C e o display LCD 20x4
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
-#include <Wire.h>               // Biblioteca utilizada para fazer a comunicacao com o modulo I2C
-#include <LiquidCrystal_I2C.h>  // Biblioteca utilizada para fazer a comunicação com o display LCD 20x4
-#include <dht.h>                // Biblioteca utilizada para fazer a comunicacao com o sensor de humidade e temperatura
-#include <DS3231.h>             // Biblioteca utilizada para fazer a comunicacao com o relogio
-#include <Servo.h>              // Biblioteca utilizada para fazer a comunicacao com o servo motor
+// BibliotecaS utilizadaS para fazer a comunicacao com o sensor de umidade e temperatura
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <DHT_U.h>
 
-#define ADDRESS 0x27;  // Endereço do display
+// Bibliotecas utilizadas para fazer a comunicacao com o servo motor
+#include <Servo.h>
 
-#define COLUMNS = 20;  // Numero de colunas do display
-#define LINES = 4;     // Numero de linhas do display
+int ADDRESS = 0x27;  // Endereço do display
 
-#define DHT11_PIN 5;  // Pino de conexao com o sensor de humidade e temperatura
+int COLUMNS = 20;  // Numero de colunas do display
+int LINES = 4;     // Numero de linhas do display
+
+int DHT11_PIN = 5;  // Pino de conexao com o sensor de humidade e temperatura
 
 int MOTOR_PIN = 8;   // Pino de conexao com o servo motor
 int BUZZER_PIN = 9;  // Pino de conexao com o buzzer
@@ -19,9 +24,10 @@ int MAX_TEMPERATURE = 23;  // Temperatura maxima
 int MIN_HUMIDITY = 20;     // Humidade minima
 
 LiquidCrystal_I2C lcd(ADDRESS, COLUMNS, LINES);  // Inicializa o display para ser usado com o modulo I2C
-dht DHT;                                         // Inicializa o sensor de humidade e temperatura
-DS3231 RTCClock;                                 // Inicializa o relogio
+DHT_Unified dht(DHT11_PIN, DHT11);               // Inicializa o sensor de humidade e temperatura
 Servo servoMotor;                                // Inicializa o servo motor
+
+int DHT11_DELAY;  // Define o delay de leitura para o sensor de umidade e temperatura
 
 void setup() {
   pinMode(BUZZER_PIN, OUTPUT);  // Definir BUZZER_PIN como tipo de saida
@@ -32,23 +38,39 @@ void setup() {
   lcd.backlight();  // Liga a luz de fundo do display
   lcd.clear();      // Limpa o texto na tela do display
 
-  RTCClock.setTime(0, 0, 0);     // Definir horario inicial do relogio como 00:00
-  RTCClock.setDate(1, 1, 2023);  // Definir data inicial do relogio como 01/01/2023
+  dht.begin();  // Inicia a comunicação com o sendor de temperatura e umidade
+  sensor_t sensor;
+  int DHT11_DELAY = sensor.min_delay / 1000;  // Atribui o valor do delay de leitura para o sensor de umidade e temperatura
 }
 
 void loop() {
-  DHT.read11(DHT11_PIN);
-  int temperature = DHT.temperature;  // Le o valor de temperatura
-  int humidity = DHT.humidity;        // Le o valor de humidade
+  sensors_event_t event;
 
-  int alarmHour = RTCClock.getHour();  // Le o valor da hora no alarme
+  int temperature = readDHT11Temperature(event);
+  int humidity = readDHT11Humidity(event);
 
-  displayTemperatureAndHumidity(temperature, humidity);  // Mostra os valores de temperatura e humidade no display
-  triggerBuzzer(temperature, humidity);                  // Ativa o buzzer baseado nos valores de temperatura e humidade
-  triggerMotor(alarmHour);                               // Ativa o motor baseado no valor da hora
+  delay(DHT11_DELAY);
+  displayTemperatureAndHumidity(temperature, humidity);
+}
+
+int readDHT11Temperature(sensors_event_t event) {
+  if (!isnan(event.temperature))
+    return dht.temperature().getEvent(&event);
+  return 0;
+}
+
+int readDHT11Humidity(sensors_event_t event) {
+  if (!isnan(event.relative_humidity))
+    return dht.humidity().getEvent(&event);
+  return 0;
 }
 
 void displayTemperatureAndHumidity(int temperature, int humidity) {
+  if (temperature == 0 || humidity == 0) {
+    lcd.setCursor(0, 0);
+    lcd.print("ERRO DE MEDICAO");
+  }
+
   lcd.setCursor(0, 0);
   lcd.print("TEMPERATURA: ");
 
@@ -81,10 +103,10 @@ void triggerBuzzer(int temperature, int humidity) {
 void triggerMotor(int hour) {
   const byte hours[] = { 4, 10, 16, 22 };
 
-  for (i = 0; i <= 4; i++) {
+  for (int i = 0; i <= 4; i++) {
     if (hour == hours[i]) {
-      for (j = 0; j <= 5; j++) {
-        servoMotor.write(180);  // Move o servo para o angulo de 90 graus
+      for (int j = 0; j <= 25; j++) {
+        servoMotor.write(180);  // Move o servo para o angulo de 180 graus
         delay(500);
         servoMotor.write(0);  // Move o servo para o angulo de 0 graus
         delay(500);
