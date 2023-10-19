@@ -2,7 +2,7 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-// BibliotecaS utilizadaS para fazer a comunicacao com o sensor de umidade e temperatura
+// Bibliotecas utilizadas para fazer a comunicacao com o sensor de umidade e temperatura
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
 #include <DHT_U.h>
@@ -15,16 +15,16 @@ int ADDRESS = 0x27;  // Endereço do display
 int COLUMNS = 20;  // Numero de colunas do display
 int LINES = 4;     // Numero de linhas do display
 
-int DHT11_PIN = 5;  // Pino de conexao com o sensor de humidade e temperatura
+int DHT11_PIN = 5;  // Pino de conexao com o sensor de umidade e temperatura
 
 int MOTOR_PIN = 8;   // Pino de conexao com o servo motor
 int BUZZER_PIN = 9;  // Pino de conexao com o buzzer
 
 int MAX_TEMPERATURE = 23;  // Temperatura maxima
-int MIN_HUMIDITY = 20;     // Humidade minima
+int MIN_HUMIDITY = 20;     // Umidade minima
 
 LiquidCrystal_I2C lcd(ADDRESS, COLUMNS, LINES);  // Inicializa o display para ser usado com o modulo I2C
-DHT_Unified dht(DHT11_PIN, DHT11);               // Inicializa o sensor de humidade e temperatura
+DHT_Unified dht(DHT11_PIN, DHT11);               // Inicializa o sensor de umidade e temperatura
 Servo servoMotor;                                // Inicializa o servo motor
 
 int DHT11_DELAY;  // Define o delay de leitura para o sensor de umidade e temperatura
