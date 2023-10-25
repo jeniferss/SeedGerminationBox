@@ -1,75 +1,99 @@
-// Biblioteca utilizada para fazer a comunicacao com o modulo I2C e o display LCD 20x4
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
+#include <Wire.h>               // Biblioteca utilizada para fazer a comunicacao com o modulo I2C
+#include <LiquidCrystal_I2C.h>  // Biblioteca utilizada para fazer a comunicação com o display LCD 20x4
 
-// Bibliotecas utilizadas para fazer a comunicacao com o sensor de umidade e temperatura
+#include <DS3231.h>  // Biblioteca utilizada para fazer a comunicacao com o relogio
+#include <Servo.h>   // Biblioteca utilizada para fazer a comunicacao com o servo motor
+
+// Biblioteca utilizada para fazer a comunicacao com o sensor de umidade e temperatura
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
 #include <DHT_U.h>
 
-// Bibliotecas utilizadas para fazer a comunicacao com o servo motor
-#include <Servo.h>
 
-int ADDRESS = 0x27;  // Endereço do display
+#define DHTTYPE DHT11
+#define DHT11PIN 5
+
+DHT_Unified dht(DHT11PIN, DHTTYPE);
+uint32_t delayDHT11;
+
+int ADRESS = 0x27;  // Endereço do display
 
 int COLUMNS = 20;  // Numero de colunas do display
 int LINES = 4;     // Numero de linhas do display
-
-int DHT11_PIN = 5;  // Pino de conexao com o sensor de umidade e temperatura
 
 int MOTOR_PIN = 8;   // Pino de conexao com o servo motor
 int BUZZER_PIN = 9;  // Pino de conexao com o buzzer
 
 int MAX_TEMPERATURE = 23;  // Temperatura maxima
-int MIN_HUMIDITY = 20;     // Umidade minima
+int MIN_HUMIDITY = 20;     // Humidade minima
 
-LiquidCrystal_I2C lcd(ADDRESS, COLUMNS, LINES);  // Inicializa o display para ser usado com o modulo I2C
-DHT_Unified dht(DHT11_PIN, DHT11);               // Inicializa o sensor de umidade e temperatura
-Servo servoMotor;                                // Inicializa o servo motor
+LiquidCrystal_I2C lcd(ADRESS, COLUMNS, LINES);  // Inicializa o display para ser usado com o modulo I2C
 
-int DHT11_DELAY;  // Define o delay de leitura para o sensor de umidade e temperatura
+DS3231 RTCClock;                                // Inicializa o relogio
+Servo servoMotor;                               // Inicializa o servo motor
 
 void setup() {
   pinMode(BUZZER_PIN, OUTPUT);  // Definir BUZZER_PIN como tipo de saida
 
   servoMotor.attach(MOTOR_PIN);  // Definir que o motor esta ligado em MOTOR_PIN = 8
 
-  lcd.init();       // Inicia a comunicação com o display
-  lcd.backlight();  // Liga a luz de fundo do display
-  lcd.clear();      // Limpa o texto na tela do display
+  // lcd.init();       // Inicia a comunicação com o display
+  // lcd.backlight();  // Liga a luz de fundo do display
+  // lcd.clear();      // Limpa o texto na tela do display
 
-  dht.begin();  // Inicia a comunicação com o sendor de temperatura e umidade
-  sensor_t sensor;
-  int DHT11_DELAY = sensor.min_delay / 1000;  // Atribui o valor do delay de leitura para o sensor de umidade e temperatura
+  // Serial.begin(9600);
+
+  // dht.begin();
+
+  // sensor_t sensor;
+  // delayDHT11 = sensor.min_delay / 1000;
+
+  // RTCClock.setTime(0, 0, 0);     // Definir horario inicial do relogio como 00:00
+  // RTCClock.setDate(1, 1, 2023);  // Definir data inicial do relogio como 01/01/2023
 }
 
 void loop() {
+
+  // readTemperatureAndHumidity();
+
+  servoMotor.write(270);  // Move o servo para o angulo de 90 graus
+  delay(1000);
+  servoMotor.write(0);  // Move o servo para o angulo de 0 graus
+  delay(1000);
+
+
+  // // int alarmHour = RTCClock.getHour();  // Le o valor da hora no alarme
+
+  // displayTemperatureAndHumidity(temperature, humidity);  // Mostra os valores de temperatura e humidade no display
+  // triggerBuzzer(temperature, humidity);                  // Ativa o buzzer baseado nos valores de temperatura e humidade
+  // triggerMotor(4);                               // Ativa o motor baseado no valor da hora
+  // servoMotor.write(0);  // Move o servo para o angulo de 90 graus
+  //       delay(1000);
+  //       servoMotor.write(180);  // Move o servo para o angulo de 0 graus
+  //       delay(1000);
+}
+
+int readTemperatureAndHumidity() {
+  delay(delayDHT11);
+
   sensors_event_t event;
 
-  int temperature = readDHT11Temperature(event);
-  int humidity = readDHT11Humidity(event);
+  dht.temperature().getEvent(&event);
+  Serial.println(event.temperature);
 
-  delay(DHT11_DELAY);
-  displayTemperatureAndHumidity(temperature, humidity);
-}
+  dht.humidity().getEvent(&event);
+  Serial.println(event.relative_humidity);
 
-int readDHT11Temperature(sensors_event_t event) {
-  if (!isnan(event.temperature))
-    return dht.temperature().getEvent(&event);
-  return 0;
-}
+  lcd.setCursor(0, 0);
+  lcd.print("TEMPERATURA: ");
 
-int readDHT11Humidity(sensors_event_t event) {
-  if (!isnan(event.relative_humidity))
-    return dht.humidity().getEvent(&event);
-  return 0;
+  if (!isnan(event.temperature) && !isnan(event.relative_humidity)) {
+    displayTemperatureAndHumidity(event.temperature, event.relative_humidity);
+  }
 }
 
 void displayTemperatureAndHumidity(int temperature, int humidity) {
-  if (temperature == 0 || humidity == 0) {
-    lcd.setCursor(0, 0);
-    lcd.print("ERRO DE MEDICAO");
-  }
+  lcd.clear();
 
   lcd.setCursor(0, 0);
   lcd.print("TEMPERATURA: ");
@@ -85,14 +109,11 @@ void displayTemperatureAndHumidity(int temperature, int humidity) {
 
   lcd.setCursor(11, 2);
   lcd.print(humidity);
-
-  delay(1000);
-  lcd.clear();
 }
 
 void triggerBuzzer(int temperature, int humidity) {
   if (temperature > MAX_TEMPERATURE || humidity < MIN_HUMIDITY) {
-    for (int i; i <= 3; i++) {
+    for (int i = 0; i <= 3; i++) {
       tone(BUZZER_PIN, 500, 1000);
       delay(1000);
       noTone(BUZZER_PIN);
@@ -105,8 +126,8 @@ void triggerMotor(int hour) {
 
   for (int i = 0; i <= 4; i++) {
     if (hour == hours[i]) {
-      for (int j = 0; j <= 25; j++) {
-        servoMotor.write(180);  // Move o servo para o angulo de 180 graus
+      for (int j = 0; j <= 5; j++) {
+        servoMotor.write(180);  // Move o servo para o angulo de 90 graus
         delay(500);
         servoMotor.write(0);  // Move o servo para o angulo de 0 graus
         delay(500);
