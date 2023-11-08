@@ -34,6 +34,8 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 // Inicializa o servo motor
 Servo servoMotor;
 
+int hour = 4;
+
 void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
   servoMotor.attach(MOTOR_PIN);
@@ -49,26 +51,32 @@ void setup() {
   sensor_t sensor;
   delayDHT11 = sensor.min_delay / 1000;
 
+  primeSpray();
+
   // RTCClock.setTime(0, 0, 0);     // Definir horario inicial do relogio como 00:00
   // RTCClock.setDate(1, 1, 2023);  // Definir data inicial do relogio como 01/01/2023
 }
 
 void loop() {
-    delay(delayDHT11);
+  delay(3000);
 
   sensors_event_t event;
 
   dht.temperature().getEvent(&event);
   int temperature = event.temperature;
+  Serial.println(temperature);
 
   dht.humidity().getEvent(&event);
   int humidity = event.relative_humidity;
+  Serial.println(humidity);
 
   if (!isnan(temperature) && !isnan(humidity)) {
     displayTemperatureAndHumidity(temperature, humidity);
-    triggerBuzzer(temperature, humidity);
+    // triggerBuzzer(temperature, humidity);
   }
 
+  triggerMotor(hour, 5);
+  hour = 5;
 }
 
 void displayTemperatureAndHumidity(int temperature, int humidity) {
@@ -103,18 +111,35 @@ void triggerBuzzer(int temperature, int humidity) {
   }
 }
 
-void triggerMotor(int hour) {
+void triggerMotor(int hour, int minute) {
   const byte hours[] = { 4, 10, 16, 22 };
 
-  for (int i = 0; i <= 4; i++) {
-    if (hour == hours[i]) {
-      for (int j = 0; j <= 5; j++) {
-        servoMotor.write(180);  // Move o servo para o angulo de 90 graus
-        delay(500);
-        servoMotor.write(0);  // Move o servo para o angulo de 0 graus
-        delay(500);
-      }
-      break;
+  bool turnMotorOn = false;
+
+  for (int i = 0; i < 4; i++) {
+    if (hour == hours[i] && minute == 5) {
+      turnMotorOn = true;
     }
   }
+
+  if (turnMotorOn) {
+    for (int j = 0; j <= 5; j++) {
+      servoMotor.write(180);  // Move o servo para o angulo de 90 graus
+      delay(500);
+      servoMotor.write(0);  // Move o servo para o angulo de 0 graus
+      delay(500);
+    }
+    servoMotor.write(180);
+    turnMotorOn = false;
+  }
+}
+
+void primeSpray() {
+  for (int j = 0; j < 6; j++) {
+    servoMotor.write(180);  // Move o servo para o angulo de 90 graus
+    delay(500);
+    servoMotor.write(0);  // Move o servo para o angulo de 0 graus
+    delay(500);
+  }
+  servoMotor.write(180);
 }
