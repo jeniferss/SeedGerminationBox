@@ -3,7 +3,7 @@
 #include <LiquidCrystal_I2C.h>
 
 // Biblioteca utilizada para fazer a comunicacao com o relogio
-//#include <DS3231.h>
+#include <DS3231.h>
 
 // Biblioteca utilizada para fazer a comunicacao com o servo motor
 #include <Servo.h>
@@ -19,8 +19,11 @@
 int MOTOR_PIN = 8;   // Pino de conexao com o servo motor
 int BUZZER_PIN = 9;  // Pino de conexao com o buzzer
 
-int MAX_TEMPERATURE = 20;  // Temperatura maxima
-int MIN_HUMIDITY = 20;     // Umidade minima
+int TARGET_MINUTE = 5;
+byte hours[6] = { 'x', 'x', 'x', 'x', 'x', 'x' };
+
+int MAX_TEMPERATURE = 32;  // Temperatura maxima
+int MIN_HUMIDITY = 40;     // Umidade minima
 
 DHT_Unified dht(DHT11PIN, DHTTYPE);
 uint32_t delayDHT11;
@@ -29,12 +32,11 @@ uint32_t delayDHT11;
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 // Inicializa o relogio
-//DS3231 RTCClock;
+RTClib rtc;
 
 // Inicializa o servo motor
 Servo servoMotor;
-
-int hour = 4;
+bool hasServoNotRunned;
 
 void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
@@ -53,8 +55,7 @@ void setup() {
 
   primeSpray();
 
-  // RTCClock.setTime(0, 0, 0);     // Definir horario inicial do relogio como 00:00
-  // RTCClock.setDate(1, 1, 2023);  // Definir data inicial do relogio como 01/01/2023
+  hasServoNotRunned = true;
 }
 
 void loop() {
@@ -64,19 +65,31 @@ void loop() {
 
   dht.temperature().getEvent(&event);
   int temperature = event.temperature;
-  Serial.println(temperature);
 
   dht.humidity().getEvent(&event);
   int humidity = event.relative_humidity;
-  Serial.println(humidity);
 
   if (!isnan(temperature) && !isnan(humidity)) {
     displayTemperatureAndHumidity(temperature, humidity);
-    // triggerBuzzer(temperature, humidity);
+    triggerBuzzer(temperature, humidity);
+    defineHoursToRun(temperature, humidity);
   }
 
-  triggerMotor(hour, 5);
-  hour = 5;
+  DateTime now = rtc.now();
+  int hour = now.hour();
+  int minute = now.minute();
+
+  Serial.print(hour, DEC);
+  Serial.print(':');
+  Serial.print(minute, DEC);
+  Serial.println("");
+
+  // Resetar horas de ativacao do motor
+  if (hour == 0) {
+    resetHours();
+  }
+
+  triggerMotor(hour, minute);
 }
 
 void displayTemperatureAndHumidity(int temperature, int humidity) {
@@ -92,12 +105,12 @@ void displayTemperatureAndHumidity(int temperature, int humidity) {
   lcd.print("*C");
 
   lcd.setCursor(0, 2);
-  lcd.print("HUMIDADE: ");
+  lcd.print("UMIDADE: ");
 
-  lcd.setCursor(10, 2);
+  lcd.setCursor(9, 2);
   lcd.print(humidity);
 
-  lcd.setCursor(13, 2);
+  lcd.setCursor(12, 2);
   lcd.print("%");
 }
 
@@ -105,41 +118,71 @@ void triggerBuzzer(int temperature, int humidity) {
   if (temperature > MAX_TEMPERATURE || humidity < MIN_HUMIDITY) {
     for (int i = 0; i <= 3; i++) {
       tone(BUZZER_PIN, 30, 1000);
-      delay(1000);
       noTone(BUZZER_PIN);
+      delay(1000);
     }
+  }
+}
+
+void resetHours() {
+  for (int i = 0; i < 6; i++) {
+    hours[i] = 'x';
   }
 }
 
 void triggerMotor(int hour, int minute) {
-  const byte hours[] = { 4, 10, 16, 22 };
-
   bool turnMotorOn = false;
 
-  for (int i = 0; i < 4; i++) {
-    if (hour == hours[i] && minute == 5) {
+  for (int i = 0; i < 6; i++) {
+    if (hour == hours[i] && minute == TARGET_MINUTE) {
       turnMotorOn = true;
+      break;
     }
   }
 
-  if (turnMotorOn) {
-    for (int j = 0; j <= 5; j++) {
-      servoMotor.write(180);  // Move o servo para o angulo de 90 graus
-      delay(500);
-      servoMotor.write(0);  // Move o servo para o angulo de 0 graus
-      delay(500);
-    }
-    servoMotor.write(180);
-    turnMotorOn = false;
+  if (!turnMotorOn && !hasServoNotRunned) {
+    hasServoNotRunned = true;
+  }
+
+  if (turnMotorOn && hasServoNotRunned) {
+    moveServo(5);
+    hasServoNotRunned = false;
   }
 }
 
 void primeSpray() {
-  for (int j = 0; j < 6; j++) {
-    servoMotor.write(180);  // Move o servo para o angulo de 90 graus
+  moveServo(6);
+}
+
+void moveServo(int sprayQuantity) {
+  for (int j = 0; j < sprayQuantity; j++) {
+    servoMotor.write(0);
     delay(500);
-    servoMotor.write(0);  // Move o servo para o angulo de 0 graus
+    servoMotor.write(180);
     delay(500);
   }
-  servoMotor.write(180);
+}
+
+void defineHoursToRun(int humidity, int temperature) {
+  if (hours[0] == 'x') {
+    if (temperature <= 18 || (humidity > 60)) {
+      hours[0] = 0;
+      hours[1] = 8;
+      hours[2] = 16;
+    }
+    if (18 < temperature < 30 || (40 <= humidity <= 60)) {
+      hours[0] = 0;
+      hours[1] = 6;
+      hours[2] = 12;
+      hours[3] = 18;
+    }
+    if (temperature >= 30 || humidity < 40) {
+      hours[0] = 0;
+      hours[1] = 4;
+      hours[2] = 8;
+      hours[3] = 12;
+      hours[4] = 16;
+      hours[5] = 20;
+    }
+  }
 }
