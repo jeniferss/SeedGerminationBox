@@ -1,60 +1,80 @@
-// Biblioteca utilizada para fazer a comunicacao com o modulo I2C e o display LCD 20x4
+/*
+  Universidade Federal do ABC 
+  Engenharia Unificada II - 2023.3
+
+  Project Name: 
+    Seed Germination Box
+
+  Project Description: 
+    The software developed below aims to control an Arduino Uno board for the home automation of seed cultivation. 
+    Initially, the project relies on temperature and relative humidity parameters as guidelines for activating seed irrigation.
+  
+  Code Author: 
+    JENIFER SOUZA
+  Code CoAuthor: 
+    GUSTAVO HENRIQUE 
+
+*/
+
+/************************************************************************
+************************* General Program Libraries *********************
+*************************************************************************/
+
+// Libraries used to communicate with the I2C module and the 20x4 LCD display
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-// Biblioteca utilizada para fazer a comunicacao com o relogio
+// Library used to communicate with the RTCClock
 #include <DS3231.h>
 
-// Biblioteca utilizada para fazer a comunicacao com o servo motor
+// Library used to communicate with the Servo Motor
 #include <Servo.h>
 
-// Biblioteca utilizada para fazer a comunicacao com o sensor de umidade e temperatura
+// Library used to communicate with the DHT11 Sensor
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
 #include <DHT_U.h>
 
+/************************************************************************
+************************* General Program Settings **********************
+*************************************************************************/
+
+// DHT11 Settings
 #define DHTTYPE DHT11
 #define DHT11PIN 5
 
-int MOTOR_PIN = 8;   // Pino de conexao com o servo motor
-int BUZZER_PIN = 9;  // Pino de conexao com o buzzer
-
-int TARGET_MINUTE = 5;
-byte hours[6] = { 'x', 'x', 'x', 'x', 'x', 'x' };
-
-int MAX_TEMPERATURE = 32;  // Temperatura maxima
-int MIN_HUMIDITY = 40;     // Umidade minima
-
 DHT_Unified dht(DHT11PIN, DHTTYPE);
-uint32_t delayDHT11;
 
-// Inicializa o display para ser usado com o modulo I2C
-LiquidCrystal_I2C lcd(0x27, 20, 4);
+// Servo Motor Settings
+int MOTOR_PIN = 8;
 
-// Inicializa o relogio
-RTClib rtc;
-
-// Inicializa o servo motor
 Servo servoMotor;
 bool hasServoNotRunned;
 
+// 20x4 LCD Display Settings
+LiquidCrystal_I2C lcd(0x27, 20, 4);
+
+// RTCClock Settings
+RTClib rtc;
+
+//  Spray Trigger Settings
+int TARGET_MINUTE = 5;
+byte hours[6] = { 'x', 'x', 'x', 'x', 'x', 'x' };
+
+int MAX_TEMPERATURE = 32;
+int MIN_HUMIDITY = 40;
+
+
 void setup() {
-  pinMode(BUZZER_PIN, OUTPUT);
   servoMotor.attach(MOTOR_PIN);
 
-  lcd.init();       // Inicia a comunicação com o display
-  lcd.backlight();  // Liga a luz de fundo do display
-  lcd.clear();      // Limpa o texto na tela do display
-
-  Serial.begin(9600);
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
 
   dht.begin();
 
-  sensor_t sensor;
-  delayDHT11 = sensor.min_delay / 1000;
-
   primeSpray();
-
   hasServoNotRunned = true;
 }
 
@@ -71,7 +91,6 @@ void loop() {
 
   if (!isnan(temperature) && !isnan(humidity)) {
     displayTemperatureAndHumidity(temperature, humidity);
-    triggerBuzzer(temperature, humidity);
     defineHoursToRun(temperature, humidity);
   }
 
@@ -79,13 +98,7 @@ void loop() {
   int hour = now.hour();
   int minute = now.minute();
 
-  Serial.print(hour, DEC);
-  Serial.print(':');
-  Serial.print(minute, DEC);
-  Serial.println("");
-
-  // Resetar horas de ativacao do motor
-  if (hour == 0) {
+  if (hour == 0 && minute == 0 && hours[0] != 'x') {
     resetHours();
   }
 
@@ -93,6 +106,11 @@ void loop() {
 }
 
 void displayTemperatureAndHumidity(int temperature, int humidity) {
+  /*
+    Method responsible for displaying the measured temperature and 
+    relative humidity values from the sensor on the display screen
+  */
+
   lcd.clear();
 
   lcd.setCursor(0, 0);
@@ -114,23 +132,23 @@ void displayTemperatureAndHumidity(int temperature, int humidity) {
   lcd.print("%");
 }
 
-void triggerBuzzer(int temperature, int humidity) {
-  if (temperature > MAX_TEMPERATURE || humidity < MIN_HUMIDITY) {
-    for (int i = 0; i <= 3; i++) {
-      tone(BUZZER_PIN, 30, 1000);
-      noTone(BUZZER_PIN);
-      delay(1000);
-    }
-  }
-}
-
 void resetHours() {
+  /*
+    Method responsible for clearing the data from the spray activation routine, 
+    so that a new one can be created based on the temperature and relative humidity values
+  */
+
   for (int i = 0; i < 6; i++) {
     hours[i] = 'x';
   }
 }
 
 void triggerMotor(int hour, int minute) {
+  /*
+    Method responsible for enabling the servo motor at the predefined hours and minutes only once each, 
+    based on the parameters 'turnMotorOn' and 'hasServoNotRunned'
+  */
+
   bool turnMotorOn = false;
 
   for (int i = 0; i < 6; i++) {
@@ -140,21 +158,32 @@ void triggerMotor(int hour, int minute) {
     }
   }
 
+  // If it is not to activate the servo and the servo has already run before
   if (!turnMotorOn && !hasServoNotRunned) {
     hasServoNotRunned = true;
   }
 
   if (turnMotorOn && hasServoNotRunned) {
-    moveServo(5);
+    moveServo(10);
     hasServoNotRunned = false;
   }
 }
 
 void primeSpray() {
+  /*
+    Method responsible for activating the motor upon system initialization, 
+    allowing water to pass through the cannula and reach the spray outlet
+  */
+
   moveServo(6);
 }
 
 void moveServo(int sprayQuantity) {
+  /*
+    Method responsible for triggering the spray behavior, 
+    moving the servo between angles 0 and 180 for a certain number of times
+  */
+
   for (int j = 0; j < sprayQuantity; j++) {
     servoMotor.write(0);
     delay(500);
@@ -164,6 +193,11 @@ void moveServo(int sprayQuantity) {
 }
 
 void defineHoursToRun(int humidity, int temperature) {
+  /*
+    Method responsible for defining the quantity and times of spray activation, 
+    all based on the temperature and relative humidity measurements at 00:00 of the day
+  */
+
   if (hours[0] == 'x') {
     if (temperature <= 18 || (humidity > 60)) {
       hours[0] = 0;
