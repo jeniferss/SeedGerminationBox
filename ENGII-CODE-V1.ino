@@ -59,7 +59,7 @@ RTClib rtc;
 
 //  Spray Trigger Settings
 int TARGET_MINUTE = 5;
-byte hours[6] = { 'x', 'x', 'x', 'x', 'x', 'x' };
+byte hours[6] = { -1, -1, -1, -1, -1, -1 };
 
 int MAX_TEMPERATURE = 32;
 int MIN_HUMIDITY = 40;
@@ -98,7 +98,7 @@ void loop() {
   int hour = now.hour();
   int minute = now.minute();
 
-  if (hour == 0 && minute == 0 && hours[0] != 'x') {
+  if (hour == 0 && minute == 0 && hours[0] != -1) {
     resetHours();
   }
 
@@ -139,7 +139,7 @@ void resetHours() {
   */
 
   for (int i = 0; i < 6; i++) {
-    hours[i] = 'x';
+    hours[i] = -1;
   }
 }
 
@@ -198,7 +198,7 @@ void defineHoursToRun(int humidity, int temperature) {
     all based on the temperature and relative humidity measurements at 00:00 of the day
   */
 
-  if (hours[0] == 'x') {
+  if (hours[0] == -1) {
     if (temperature <= 18 || (humidity > 60)) {
       hours[0] = 0;
       hours[1] = 8;
